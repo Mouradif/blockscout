@@ -12,7 +12,7 @@ defmodule Explorer.SmartContract.CompilerVersion do
   @doc """
   Fetches a list of compilers from the Ethereum Solidity API.
   """
-  @spec fetch_versions(:solc | :vyper | :zk | :stylus) :: {atom, [binary()]}
+  @spec fetch_versions(:solc | :vyper | :zk | :stylus | :huff) :: {atom, [binary()]}
   def fetch_versions(compiler)
 
   def fetch_versions(:solc) do
@@ -31,6 +31,10 @@ defmodule Explorer.SmartContract.CompilerVersion do
     fetch_compiler_versions(&StylusVerifierInterface.get_versions_list/0, :stylus)
   end
 
+  def fetch_versions(:huff) do
+    {:ok, ["huffc", "huff-neo"]}
+  end
+
   @doc """
   Fetches the list of compiler versions for the given compiler.
 
@@ -43,7 +47,7 @@ defmodule Explorer.SmartContract.CompilerVersion do
     - A list of available compiler versions.
 
   """
-  @spec fetch_version_list(:solc | :vyper | :zk | :stylus) :: [binary()]
+  @spec fetch_version_list(:solc | :vyper | :zk | :stylus | :huff) :: [binary()]
   def fetch_version_list(compiler) do
     case fetch_versions(compiler) do
       {:ok, compiler_versions} ->
@@ -201,6 +205,7 @@ defmodule Explorer.SmartContract.CompilerVersion do
     case compiler do
       :solc -> get_solc_latest_stable_version(compiler_version)
       :vyper -> get_vyper_latest_stable_version(compiler_version)
+      :huff -> compiler_version
     end
   end
 

@@ -8,6 +8,7 @@ defmodule BlockScoutWeb.AddressContractVerificationController do
   alias Explorer.SmartContract.Solidity.PublisherWorker, as: SolidityPublisherWorker
   alias Explorer.SmartContract.Solidity.PublishHelper
   alias Explorer.SmartContract.Vyper.PublisherWorker, as: VyperPublisherWorker
+  alias Explorer.SmartContract.Huff.PublisherWorker, as: HuffPublisherWorker
   alias Explorer.ThirdPartyIntegrations.Sourcify
 
   def new(conn, %{"address_id" => address_hash_string}) do
@@ -104,6 +105,18 @@ defmodule BlockScoutWeb.AddressContractVerificationController do
         }
       ) do
     Que.add(VyperPublisherWorker, {smart_contract["address_hash"], smart_contract, conn})
+
+    send_resp(conn, 204, "")
+  end
+
+  def create(
+        conn,
+        %{
+          "smart_contract" => smart_contract,
+          "verification_type" => "huff"
+        }
+      ) do
+    Que.add(HuffPublisherWorker, {smart_contract["address_hash"], smart_contract, conn})
 
     send_resp(conn, 204, "")
   end
