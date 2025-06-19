@@ -14,6 +14,7 @@ defmodule BlockScoutWeb.API.V2.VerificationController do
   alias Explorer.SmartContract.Solidity.PublishHelper
   alias Explorer.SmartContract.Stylus.PublisherWorker, as: StylusPublisherWorker
   alias Explorer.SmartContract.Vyper.PublisherWorker, as: VyperPublisherWorker
+  alias Explorer.SmartContract.Huff.PublisherWorker, as: HuffPublisherWorker
   alias Explorer.SmartContract.{CompilerVersion, RustVerifierInterface, Solidity.CodeCompiler, StylusVerifierInterface}
 
   action_fallback(BlockScoutWeb.API.V2.FallbackController)
@@ -31,6 +32,7 @@ defmodule BlockScoutWeb.API.V2.VerificationController do
   def config(conn, _params) do
     solidity_compiler_versions = CompilerVersion.fetch_version_list(:solc)
     vyper_compiler_versions = CompilerVersion.fetch_version_list(:vyper)
+    huff_compiler_versions = CompilerVersion.fetch_version_list(:huff)
 
     verification_options = get_verification_options()
 
@@ -41,6 +43,7 @@ defmodule BlockScoutWeb.API.V2.VerificationController do
         vyper_compiler_versions: vyper_compiler_versions,
         verification_options: verification_options,
         vyper_evm_versions: CodeCompiler.evm_versions(:vyper),
+        huff_compiler_versions: huff_compiler_versions,
         is_rust_verifier_microservice_enabled: RustVerifierInterface.enabled?(),
         license_types: Enum.into(SmartContract.license_types_enum(), %{})
       }
@@ -58,7 +61,7 @@ defmodule BlockScoutWeb.API.V2.VerificationController do
     if Application.get_env(:explorer, :chain_type) == :zksync do
       ["standard-input"]
     else
-      ["flattened-code", "standard-input", "vyper-code"]
+      ["flattened-code", "standard-input", "vyper-code", "huff-code"]
       |> (&if(Application.get_env(:explorer, Explorer.ThirdPartyIntegrations.Sourcify)[:enabled],
             do: ["sourcify" | &1],
             else: &1
@@ -244,6 +247,32 @@ defmodule BlockScoutWeb.API.V2.VerificationController do
 
       log_sc_verification_started(address_hash_string)
       Que.add(VyperPublisherWorker, {"vyper_flattened", verification_params})
+
+      conn
+      |> put_view(ApiView)
+      |> render(:message, %{message: @sc_verification_started})
+    end
+  end
+
+  def verification_via_huff_code(
+        conn,
+        %{"address_hash" => address_hash_string, "compiler_version" => compiler_version, "source_code" => source_code} =
+          params
+      ) do
+    with :validated <- validate_address(params) do
+      verification_params =
+        %{
+          "address_hash" => String.downcase(address_hash_string),
+          "compiler_version" => compiler_version,
+          "contract_source_code" => source_code
+        }
+        |> Map.put("constructor_arguments", Map.get(params, "constructor_args", "") || "")
+        |> Map.put("name", Map.get(params, "contract_name", "Huff_contract"))
+        |> Map.put("evm_version", Map.get(params, "evm_version"))
+        |> Map.put("license_type", Map.get(params, "license_type"))
+
+      log_sc_verification_started(address_hash_string)
+      Que.add(HuffPublisherWorker, {"huff", verification_params})
 
       conn
       |> put_view(ApiView)
